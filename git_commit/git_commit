@@ -1,0 +1,278 @@
+#!/bin/bash
+# git commit 规范工具
+# version: 1.0
+
+E='echo -e'
+e='echo -en'
+trap "R;exit" 2
+ESC=$($e "\e")
+TPUT() { $e "\e[${1};${2}H"; }
+CLEAR() { $e "\ec"; }
+DRAW() { $e "\e%@\e(0"; }
+MARK() { $e "\e[7m"; }
+UNMARK() { $e "\e[27m"; }
+R() {
+	CLEAR
+	stty sane
+}
+i=0
+CLEAR
+NULL=/dev/null
+
+SCOPE() {
+	read -p "$(echo -e "\n\033[33m请添加本次commit波及范围的内容, 如（mysql, redis, 数据层,）：\033[1m\033[0m ")" scope
+	BODY ${scope}
+}
+
+SUBJECT() {
+	read -p "$(echo -e "\n\033[33m请填写commit 标题：\033[1m\033[0m")" subject
+}
+
+BODY() {
+	echo -e "\n\033[33m请详细描述commit 修改内容，可以分为多行，按q结束：\033[1m\033[0m"
+	read -d "q" -p "$(echo -e "")" body
+}
+
+FOOTER() {
+	read -p "$(echo -e "\n\n\033[33m请描述一下与之关联的issue或request,\n如 close #111,fix #333, 没有请按回车结束：\033[1m\033[0m")" footer
+}
+
+ARROW() {
+	read -s -n3 key 2>/dev/null >&2
+	if [[ $key == $ESC[A ]]; then echo up; fi
+	if [[ $key == $ESC[B ]]; then echo dn; fi
+}
+M0() {
+	TPUT 2 8
+	$e "\033[32mfeat: 添加新功能\033[1m\033[0m"
+}
+M1() {
+	TPUT 3 8
+	$e "\033[32mfix: 修改BUG\033[1m\033[0m"
+}
+M2() {
+	TPUT 4 8
+	$e "\033[32mdocs: 添加文档或修改文档\033[1m\033[0m"
+}
+M3() {
+	TPUT 5 8
+	$e "\033[32mstyle: 修改代码格式\033[1m\033[0m"
+}
+M4() {
+	TPUT 6 8
+	$e "\033[32mrefactor: 重构代码\033[1m\033[0m"
+}
+M5() {
+	TPUT 7 8
+	$e "\033[32mtest: 测试用例修改\033[1m\033[0m"
+}
+M6() {
+	TPUT 8 8
+	$e "\033[32mchore: 其他修改，如构建流程，依赖管理\033[1m\033[0m"
+}
+M7() {
+	TPUT 9 8
+	$e "\033[32mexit\033[1m\033[0m"
+}
+LM=7
+MENU() { for each in $(seq 0 $LM); do M${each}; done; }
+POS() {
+	if [[ $cur == up ]]; then ((i--)); fi
+	if [[ $cur == dn ]]; then ((i++)); fi
+	if [[ $i -lt 0 ]]; then i=$LM; fi
+	if [[ $i -gt $LM ]]; then i=0; fi
+}
+REFRESH() {
+	after=$((i + 1))
+	before=$((i - 1))
+	if [[ $before -lt 0 ]]; then before=$LM; fi
+	if [[ $after -gt $LM ]]; then after=0; fi
+	if [[ $j -lt $i ]]; then
+		UNMARK
+		M$before
+	else
+		UNMARK
+		M$after
+	fi
+	if [[ $after -eq 0 ]] || [ $before -eq $LM ]; then
+		UNMARK
+		M$before
+		M$after
+	fi
+	j=$i
+	UNMARK
+	M$before
+	M$after
+}
+INIT() {
+	R
+	$e "\033[33m请选择commit类型: \033[1m\033[0m"
+	MENU
+}
+SC() {
+	REFRESH
+	MARK
+	$S
+	$b
+	cur=$(ARROW)
+}
+ES() {
+	MARK
+	$b
+	echo -e "\033[33m请按回车键退出\033[1m\033[0m"
+	read -p "$*"
+	exit 0
+}
+INIT
+while [[ "$O" != " " ]]; do
+	case $i in
+	0)
+		S=M0
+		SC
+		if [[ $cur == "" ]]; then
+			R
+			read -p "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+			if [[ "$option" == "Y" ]]; then
+				SUBJECT
+				SCOPE
+				FOOTER
+				git commit -m "$(echo -e "\n:sparkles: feat(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+			else
+				SUBJECT
+				BODY
+				FOOTER
+				git commit -m "$(echo -e "\n:sparkles: feat: ${subject} \n\n${body}\n\n${footer}")"
+			fi
+			ES
+		fi
+		;;
+	1)
+		S=M1
+		SC
+		if [[ $cur == "" ]]; then
+			R
+			read -p "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+			if [[ "$option" == "Y" ]]; then
+				SUBJECT
+				SCOPE
+				FOOTER
+				git commit -m "$(echo -e "\n:bug: fix(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+			else
+				SUBJECT
+				BODY
+				FOOTER
+				git commit -m "$(echo -e "\n:bug: fix: ${subject} \n\n${body}\n\n${footer}")"
+			fi
+			ES
+		fi
+		;;
+	2)
+		S=M2
+		SC
+		if [[ $cur == "" ]]; then
+			R
+			read -p "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+			if [[ "$option" == "Y" ]]; then
+				SUBJECT
+				SCOPE
+				FOOTER
+				git commit -m "$(echo -e "\n:memo: docs(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+			else
+				SUBJECT
+				BODY
+				FOOTER
+				git commit -m "$(echo -e "\n:memo: docs: ${subject} \n\n${body}\n\n${footer}")"
+			fi
+			ES
+		fi
+		;;
+	3)
+		S=M3
+		SC
+		if [[ $cur == "" ]]; then
+			R
+			read -p "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+			if [[ "$option" == "Y" ]]; then
+				SUBJECT
+				BODY
+				FOOTER
+				git commit -m "$(echo -e "\n:art: style: ${subject} \n\n${body}\n\n${footer}")"
+			else
+				SUBJECT
+				SCOPE
+				FOOTER
+				git commit -m "$(echo -e "\n:art: style(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+			fi
+			ES
+		fi
+		;;
+	4)
+		S=M4
+		SC
+		if [[ $cur == "" ]]; then
+			R
+			read -p "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+			if [[ "$option" == "Y" ]]; then
+				SUBJECT
+				BODY
+				FOOTER
+				git commit -m "$(echo -e "\n:recycle: refactor: ${subject} \n\n${body}\n\n${footer}")"
+			else
+				SUBJECT
+				SCOPE
+				FOOTER
+				git commit -m "$(echo -e "\n:recycle: refactor(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+			fi
+			ES
+		fi
+		;;
+	5)
+		S=M5
+		SC
+		if [[ $cur == "" ]]; then
+			R
+			read -p "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+			if [[ "$option" == "Y" ]]; then
+				SUBJECT
+				BODY
+				FOOTER
+				git commit -m "$(echo -e "\n:white_check_mark: test: ${subject} \n\n${body}\n\n${footer}")"
+			else
+				SUBJECT
+				SCOPE
+				FOOTER
+				git commit -m "$(echo -e "\n:white_check_mark: test(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+			fi
+			ES
+		fi
+		;;
+	6)
+		S=M6
+		SC
+		if [[ $cur == "" ]]; then
+			R
+			read -p "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+			if [[ "$option" == "Y" ]]; then
+				SUBJECT
+				BODY
+				FOOTER
+				git commit -m "$(echo -e "\n:building_construction: chore: ${subject} \n\n${body}\n\n${footer}")"
+			else
+				SUBJECT
+				SCOPE
+				FOOTER
+				git commit -m "$(echo -e "\n:building_construction: chore(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+			fi
+			ES
+		fi
+		;;
+	7)
+		S=M7
+		SC
+		if [[ $cur == "" ]]; then
+			exit 0
+		fi
+		;;
+	esac
+	POS
+done
