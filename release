@@ -1,0 +1,416 @@
+#!/bin/bash
+# git commit && release && push工具
+# version: 1.0
+
+e='echo -en'
+trap "R;exit" 2
+ESC=$($e "\e")
+version=$(cat "$(pwd)"/VERSION | grep '^VERSION=' | sed 's/VERSION=//')
+number=$(echo ${version} | awk -F '[.-]' '{print NF}')
+major_number=$(echo ${version} | awk -F '[.-]' '{print $1}')
+minor_number=$(echo ${version} | awk -F '[.-]' '{print $2}')
+revision_number=$(echo ${version} | awk -F '[.-]' '{print $3}')
+version_release=$(echo ${version} | awk -F '[.-]' '{print $4}')
+if [[ "$number" > 4 ]]; then
+	version_release_number=$(echo ${version} | awk -F '[.-]' '{print $5}')
+fi
+TPUT() { $e "\e[${1};${2}H"; }
+CLEAR() { $e "\ec"; }
+DRAW() { $e "\e%@\e(0"; }
+MARK() { $e "\e[7m"; }
+UNMARK() { $e "\e[27m"; }
+R() {
+	CLEAR
+	stty sane
+}
+i=0
+k=0
+CLEAR
+
+POS() {
+	if [[ $cur == up ]]; then ((i--)); fi
+	if [[ $cur == dn ]]; then ((i++)); fi
+	if [[ $i -lt 0 ]]; then i=$LM; fi
+	if [[ $i -gt $LM ]]; then i=0; fi
+}
+REFRESH() {
+	after=$((i + 1))
+	before=$((i - 1))
+	if [[ $before -lt 0 ]]; then before=$LM; fi
+	if [[ $after -gt $LM ]]; then after=0; fi
+	if [[ $j -lt $i ]]; then
+		UNMARK
+		M$before
+	else
+		UNMARK
+		M$after
+	fi
+	if [[ $after -eq 0 ]] || [ $before -eq $LM ]; then
+		UNMARK
+		M$before
+		M$after
+	fi
+	j=$i
+	UNMARK
+	M$before
+	M$after
+}
+RELEASE_POS() {
+	if [[ $cur == up ]]; then ((k--)); fi
+	if [[ $cur == dn ]]; then ((k++)); fi
+	if [[ $k -lt 0 ]]; then k=$RM; fi
+	if [[ $k -gt $RM ]]; then k=0; fi
+}
+RELEASE_REFRESH() {
+	after=$((k + 1))
+	before=$((k - 1))
+	if [[ $before -lt 0 ]]; then before=$RM; fi
+	if [[ $after -gt $RM ]]; then after=0; fi
+	if [[ $j -lt $k ]]; then
+		UNMARK
+		M$before
+	else
+		UNMARK
+		M$after
+	fi
+	if [[ $after -eq 0 ]] || [ $before -eq $RM ]; then
+		UNMARK
+		M$before
+		M$after
+	fi
+	j=$k
+	UNMARK
+	M$before
+	M$after
+}
+
+ARROW() {
+	read -s -n3 key 2>/dev/null >&2
+	if [[ $key == $ESC[A ]]; then echo up; fi
+	if [[ $key == $ESC[B ]]; then echo dn; fi
+}
+RELEASE_SC() {
+	RELEASE_REFRESH
+	MARK
+	$V
+	cur=$(ARROW)
+}
+COMMIT_SC() {
+	REFRESH
+	MARK
+	$S
+	cur=$(ARROW)
+}
+ES() {
+	MARK
+	echo -e "\033[33m请按回车键退出\033[1m\033[0m"
+	read -rp "$*"
+	exit 0
+}
+
+SCOPE() {
+	read -rp "$(echo -e "\n\033[33m请添加本次commit波及范围的内容, 如（mysql, redis, 数据层,）：\033[1m\033[0m ")" scope
+	BODY ${scope}
+}
+
+SUBJECT() {
+	read -rp "$(echo -e "\n\033[33m请填写commit 标题：\033[1m\033[0m")" subject
+}
+
+BODY() {
+	echo -e "\n\033[33m请详细描述commit 修改内容，可以分为多行，按q结束：\033[1m\033[0m"
+	read -d "q" -rp "$(echo -e "")" body
+}
+
+FOOTER() {
+	read -rp "$(echo -e "\n\n\033[33m请描述一下与之关联的issue或request,\n如 close #111,fix #333, 没有请按回车结束：\033[1m\033[0m")" footer
+}
+
+R0() {
+	TPUT 3 8
+	$e "\033[32m主版本号：功能模块或整体架构发生变动，包括但不限于新增特性、修改机制、删除功能\033[1m\033[0m"
+}
+
+R1() {
+	TPUT 4 8
+	$e "\033[32m次版本号：进行常规的新增或修改功能\033[1m\033[0m"
+}
+
+R2() {
+	TPUT 5 8
+	$e "\033[32m修订号：修复或调整BUG\033[1m\033[0m"
+}
+
+R3() {
+	TPUT 6 8
+	$e "\033[32m版本阶段：软件版本阶段\033[1m\033[0m"
+}
+R4() {
+	TPUT 7 8
+	$e "\033[32m退出\033[1m\033[0m"
+}
+RM=4
+RELEASE_MENU() { for each in $(seq 0 $RM); do R${each}; done; }
+M0() {
+	TPUT 2 8
+	$e "\033[32mfeat: 添加新功能\033[1m\033[0m"
+}
+M1() {
+	TPUT 3 8
+	$e "\033[32mfix: 修改BUG\033[1m\033[0m"
+}
+M2() {
+	TPUT 4 8
+	$e "\033[32mdocs: 添加文档或修改文档\033[1m\033[0m"
+}
+M3() {
+	TPUT 5 8
+	$e "\033[32mstyle: 修改代码格式\033[1m\033[0m"
+}
+M4() {
+	TPUT 6 8
+	$e "\033[32mrefactor: 重构代码\033[1m\033[0m"
+}
+M5() {
+	TPUT 7 8
+	$e "\033[32mtest: 测试用例修改\033[1m\033[0m"
+}
+M6() {
+	TPUT 8 8
+	$e "\033[32mchore: 其他修改，如构建流程，依赖管理\033[1m\033[0m"
+}
+M7() {
+	TPUT 9 8
+	$e "\033[32mexit\033[1m\033[0m"
+}
+LM=7
+COMMIT_MENU() { for each in $(seq 0 $LM); do M${each}; done; }
+COMMIT_INIT() {
+	R
+	$e "\033[33m请选择commit类型: \033[1m\033[0m"
+	COMMIT_MENU
+	COMMIT_MESSAGE
+}
+VERSION() {
+	sed -i "s#VERSION=.*#VERSION=${1}.${2}.${3}-${4}#" "$(pwd)"/VERSION
+}
+RELEASE() {
+	while [[ "$O" != " " ]]; do
+		case $i in
+		0)
+			V=R0
+			RELEASE_SC
+			if [[ $cur == "" ]]; then
+				R
+				major_number=$(($major_number + 1))
+				VERSION ${major_number} ${minor_number} ${revision_number} ${version_release}
+				COMMIT_INIT
+			fi
+			;;
+		1)
+			V=R1
+			RELEASE_SC
+			if [[ $cur == "" ]]; then
+				R
+				minor_number=$(($minor_number + 1))
+				VERSION ${major_number} ${minor_number} ${revision_number} ${version_release}
+				COMMIT_INIT
+			fi
+			;;
+		2)
+			V=R2
+			RELEASE_SC
+			if [[ $cur == "" ]]; then
+				R
+				revision_number=$(($revision_number + 1))
+				VERSION ${major_number} ${minor_number} ${revision_number} ${version_release}
+				COMMIT_INIT
+			fi
+			;;
+		3)
+			V=R3
+			RELEASE_SC
+			if [[ $cur == "" ]]; then
+				R
+				version_release=$(($version_release + 1))
+				VERSION ${major_number} ${minor_number} ${revision_number} ${version_release}
+				COMMIT_INIT
+			fi
+			;;
+		4)
+			V=R4
+			RELEASE_SC
+			if [[ $cur == "" ]]; then
+				exit 0
+			fi
+			;;
+		esac
+		RELEASE_POS
+	done
+}
+COMMIT_MESSAGE() {
+	while [[ "$O" != " " ]]; do
+		case $i in
+		0)
+			S=M0
+			COMMIT_SC
+			if [[ $cur == "" ]]; then
+				R
+				read -rp "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+				if [[ "$option" == "Y" ]]; then
+					SUBJECT
+					COMMIT_SCOPE
+					FOOTER
+					git commit -m "$(echo -e "\n:sparkles: feat(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+				else
+					SUBJECT
+					BODY
+					FOOTER
+					git commit -m "$(echo -e "\n:sparkles: feat: ${subject} \n\n${body}\n\n${footer}")"
+				fi
+				ES
+			fi
+			;;
+		1)
+			S=M1
+			COMMIT_SC
+			if [[ $cur == "" ]]; then
+				R
+				read -rp "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+				if [[ "$option" == "Y" ]]; then
+					SUBJECT
+					COMMIT_SCOPE
+					FOOTER
+					git commit -m "$(echo -e "\n:bug: fix(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+				else
+					SUBJECT
+					BODY
+					FOOTER
+					git commit -m "$(echo -e "\n:bug: fix: ${subject} \n\n${body}\n\n${footer}")"
+				fi
+				ES
+			fi
+			;;
+		2)
+			S=M2
+			COMMIT_SC
+			if [[ $cur == "" ]]; then
+				R
+				read -rp "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+				if [[ "$option" == "Y" ]]; then
+					SUBJECT
+					COMMIT_SCOPE
+					FOOTER
+					git commit -m "$(echo -e "\n:memo: docs(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+				else
+					SUBJECT
+					BODY
+					FOOTER
+					git commit -m "$(echo -e "\n:memo: docs: ${subject} \n\n${body}\n\n${footer}")"
+				fi
+				ES
+			fi
+			;;
+		3)
+			S=M3
+			COMMIT_SC
+			if [[ $cur == "" ]]; then
+				R
+				read -rp "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+				if [[ "$option" == "Y" ]]; then
+					SUBJECT
+					BODY
+					FOOTER
+					git commit -m "$(echo -e "\n:art: style: ${subject} \n\n${body}\n\n${footer}")"
+				else
+					SUBJECT
+					COMMIT_SCOPE
+					FOOTER
+					git commit -m "$(echo -e "\n:art: style(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+				fi
+				ES
+			fi
+			;;
+		4)
+			S=M4
+			COMMIT_SC
+			if [[ $cur == "" ]]; then
+				R
+				read -rp "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+				if [[ "$option" == "Y" ]]; then
+					SUBJECT
+					BODY
+					FOOTER
+					git commit -m "$(echo -e "\n:recycle: refactor: ${subject} \n\n${body}\n\n${footer}")"
+				else
+					SUBJECT
+					COMMIT_SCOPE
+					FOOTER
+					git commit -m "$(echo -e "\n:recycle: refactor(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+				fi
+				ES
+			fi
+			;;
+		5)
+			S=M5
+			COMMIT_SC
+			if [[ $cur == "" ]]; then
+				R
+				read -rp "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+				if [[ "$option" == "Y" ]]; then
+					SUBJECT
+					BODY
+					FOOTER
+					git commit -m "$(echo -e "\n:white_check_mark: test: ${subject} \n\n${body}\n\n${footer}")"
+				else
+					SUBJECT
+					COMMIT_SCOPE
+					FOOTER
+					git commit -m "$(echo -e "\n:white_check_mark: test(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+				fi
+				ES
+			fi
+			;;
+		6)
+			S=M6
+			COMMIT_SC
+			if [[ $cur == "" ]]; then
+				R
+				read -rp "$(echo -e "\033[33m是否填写本次commit波及的范围[Y/N](可选)，默认为N：\033[1m\033[0m")" option
+				if [[ "$option" == "Y" ]]; then
+					SUBJECT
+					BODY
+					FOOTER
+					git commit -m "$(echo -e "\n:building_construction: chore: ${subject} \n\n${body}\n\n${footer}")"
+				else
+					SUBJECT
+					COMMIT_SCOPE
+					FOOTER
+					git commit -m "$(echo -e "\n:building_construction: chore(${scope}): ${subject}\n\n${body}\n\n${footer}")"
+				fi
+				ES
+			fi
+			;;
+		7)
+			S=M7
+			COMMIT_SC
+			if [[ $cur == "" ]]; then
+				exit 0
+			fi
+			;;
+		esac
+		POS
+	done
+}
+INIT() {
+	R
+	if [[ -f "$(pwd)/VERSION" ]]; then
+		$e "\033[33m当前版本：$version\n\033[1m\033[0m"
+		$e "\033[33m请选择提交类型：\n\033[1m\033[0m"
+		RELEASE_MENU
+		RELEASE
+	else
+		$e "\033[33m无法识别当前版本，当前路径错误，不存在VERSION文件\n\033[1m\033[0m"
+	fi
+}
+INIT
