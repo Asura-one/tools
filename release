@@ -5,15 +5,6 @@
 e='echo -en'
 trap "R;exit" 2
 ESC=$($e "\e")
-version=$(cat "$(pwd)"/VERSION | grep '^VERSION=' | sed 's/VERSION=//')
-number=$(echo ${version} | awk -F '[.-]' '{print NF}')
-major_number=$(echo ${version} | awk -F '[.-]' '{print $1}')
-minor_number=$(echo ${version} | awk -F '[.-]' '{print $2}')
-revision_number=$(echo ${version} | awk -F '[.-]' '{print $3}')
-version_release=$(echo ${version} | awk -F '[.-]' '{print $4}')
-if [[ "$number" > 4 ]]; then
-	version_release_number=$(echo ${version} | awk -F '[.-]' '{print $5}')
-fi
 TPUT() { $e "\e[${1};${2}H"; }
 CLEAR() { $e "\ec"; }
 DRAW() { $e "\e%@\e(0"; }
@@ -40,19 +31,19 @@ REFRESH() {
 	if [[ $after -gt $LM ]]; then after=0; fi
 	if [[ $j -lt $i ]]; then
 		UNMARK
-		M$before
+		M"$before"
 	else
 		UNMARK
 		M$after
 	fi
-	if [[ $after -eq 0 ]] || [ $before -eq $LM ]; then
+	if [[ $after -eq 0 ]] || [ "$before" -eq "$LM" ]; then
 		UNMARK
-		M$before
+		M"$before"
 		M$after
 	fi
 	j=$i
 	UNMARK
-	M$before
+	M"$before"
 	M$after
 }
 RELEASE_POS() {
@@ -68,24 +59,24 @@ RELEASE_REFRESH() {
 	if [[ $after -gt $RM ]]; then after=0; fi
 	if [[ $j -lt $k ]]; then
 		UNMARK
-		M$before
+		M"$before"
 	else
 		UNMARK
 		M$after
 	fi
-	if [[ $after -eq 0 ]] || [ $before -eq $RM ]; then
+	if [[ $after -eq 0 ]] || [ "$before" -eq "$RM" ]; then
 		UNMARK
-		M$before
+		M"$before"
 		M$after
 	fi
 	j=$k
 	UNMARK
-	M$before
+	M"$before"
 	M$after
 }
 
 ARROW() {
-	read -s -n3 key 2>/dev/null >&2
+	read -rs -n3 key 2>/dev/null >&2
 	if [[ $key == $ESC[A ]]; then echo up; fi
 	if [[ $key == $ESC[B ]]; then echo dn; fi
 }
@@ -110,7 +101,7 @@ ES() {
 
 SCOPE() {
 	read -rp "$(echo -e "\n\033[33m请添加本次commit波及范围的内容, 如（mysql, redis, 数据层,）：\033[1m\033[0m ")" scope
-	BODY ${scope}
+	BODY "${scope}"
 }
 
 SUBJECT() {
@@ -150,7 +141,7 @@ R4() {
 	$e "\033[32m退出\033[1m\033[0m"
 }
 RM=4
-RELEASE_MENU() { for each in $(seq 0 $RM); do R${each}; done; }
+RELEASE_MENU() { for each in $(seq 0 $RM); do R"${each}"; done; }
 M0() {
 	TPUT 2 8
 	$e "\033[32mfeat: 添加新功能\033[1m\033[0m"
@@ -184,17 +175,26 @@ M7() {
 	$e "\033[32mexit\033[1m\033[0m"
 }
 LM=7
-COMMIT_MENU() { for each in $(seq 0 $LM); do M${each}; done; }
+COMMIT_MENU() { for each in $(seq 0 $LM); do M"${each}"; done; }
 COMMIT_INIT() {
 	R
 	$e "\033[33m请选择commit类型: \033[1m\033[0m"
 	COMMIT_MENU
-	COMMIT_MESSAGE
+	COMMIT_MESSAGE "$@"
 }
 VERSION() {
 	sed -i "s#VERSION=.*#VERSION=${1}.${2}.${3}-${4}#" "$(pwd)"/VERSION
 }
 RELEASE() {
+	version=$(< "$(pwd)"/VERSION grep '^VERSION=' | sed 's/VERSION=//')
+	number=$(echo "${version}" | awk -F '[.-]' '{print NF}')
+	major_number=$(echo "${version}" | awk -F '[.-]' '{print $1}')
+	minor_number=$(echo "${version}" | awk -F '[.-]' '{print $2}')
+	revision_number=$(echo "${version}" | awk -F '[.-]' '{print $3}')
+	version_release=$(echo "${version}" | awk -F '[.-]' '{print $4}')
+	if [[ "$number" -gt 4 ]]; then
+		version_release_number=$(echo "${version}" | awk -F '[.-]' '{print $5}')
+	fi
 	while [[ "$O" != " " ]]; do
 		case $i in
 		0)
@@ -202,9 +202,9 @@ RELEASE() {
 			RELEASE_SC
 			if [[ $cur == "" ]]; then
 				R
-				major_number=$(($major_number + 1))
-				VERSION ${major_number} ${minor_number} ${revision_number} ${version_release}
-				COMMIT_INIT
+				major_number=$((major_number + 1))
+				VERSION ${major_number} "${minor_number}" "${revision_number}" "${version_release}" "${version_release_number}"
+				COMMIT_INIT "$@"
 			fi
 			;;
 		1)
@@ -212,8 +212,8 @@ RELEASE() {
 			RELEASE_SC
 			if [[ $cur == "" ]]; then
 				R
-				minor_number=$(($minor_number + 1))
-				VERSION ${major_number} ${minor_number} ${revision_number} ${version_release}
+				minor_number=$((minor_number + 1))
+				VERSION ${major_number} ${minor_number} "${revision_number}" "${version_release}" "${version_release_number}"
 				COMMIT_INIT
 			fi
 			;;
@@ -222,8 +222,8 @@ RELEASE() {
 			RELEASE_SC
 			if [[ $cur == "" ]]; then
 				R
-				revision_number=$(($revision_number + 1))
-				VERSION ${major_number} ${minor_number} ${revision_number} ${version_release}
+				revision_number=$((revision_number + 1))
+				VERSION ${major_number} ${minor_number} ${revision_number} "${version_release}" "${version_release_number}"
 				COMMIT_INIT
 			fi
 			;;
@@ -232,8 +232,8 @@ RELEASE() {
 			RELEASE_SC
 			if [[ $cur == "" ]]; then
 				R
-				version_release=$(($version_release + 1))
-				VERSION ${major_number} ${minor_number} ${revision_number} ${version_release}
+				version_release=$((version_release + 1))
+				VERSION ${major_number} ${minor_number} ${revision_number} ${version_release} "${version_release_number}"
 				COMMIT_INIT
 			fi
 			;;
@@ -268,7 +268,7 @@ COMMIT_MESSAGE() {
 					FOOTER
 					git commit -m "$(echo -e "\n:sparkles: feat: ${subject} \n\n${body}\n\n${footer}")"
 				fi
-				ES
+				ES "$@"
 			fi
 			;;
 		1)
@@ -288,7 +288,7 @@ COMMIT_MESSAGE() {
 					FOOTER
 					git commit -m "$(echo -e "\n:bug: fix: ${subject} \n\n${body}\n\n${footer}")"
 				fi
-				ES
+				ES "$@"
 			fi
 			;;
 		2)
@@ -308,7 +308,7 @@ COMMIT_MESSAGE() {
 					FOOTER
 					git commit -m "$(echo -e "\n:memo: docs: ${subject} \n\n${body}\n\n${footer}")"
 				fi
-				ES
+				ES "$@"
 			fi
 			;;
 		3)
@@ -328,7 +328,7 @@ COMMIT_MESSAGE() {
 					FOOTER
 					git commit -m "$(echo -e "\n:art: style(${scope}): ${subject}\n\n${body}\n\n${footer}")"
 				fi
-				ES
+				ES "$@"
 			fi
 			;;
 		4)
@@ -348,7 +348,7 @@ COMMIT_MESSAGE() {
 					FOOTER
 					git commit -m "$(echo -e "\n:recycle: refactor(${scope}): ${subject}\n\n${body}\n\n${footer}")"
 				fi
-				ES
+				ES "$@"
 			fi
 			;;
 		5)
@@ -368,7 +368,7 @@ COMMIT_MESSAGE() {
 					FOOTER
 					git commit -m "$(echo -e "\n:white_check_mark: test(${scope}): ${subject}\n\n${body}\n\n${footer}")"
 				fi
-				ES
+				ES "$@"
 			fi
 			;;
 		6)
@@ -388,7 +388,7 @@ COMMIT_MESSAGE() {
 					FOOTER
 					git commit -m "$(echo -e "\n:building_construction: chore(${scope}): ${subject}\n\n${body}\n\n${footer}")"
 				fi
-				ES
+				ES "$@"
 			fi
 			;;
 		7)
@@ -408,9 +408,9 @@ INIT() {
 		$e "\033[33m当前版本：$version\n\033[1m\033[0m"
 		$e "\033[33m请选择提交类型：\n\033[1m\033[0m"
 		RELEASE_MENU
-		RELEASE
+		RELEASE "$@"
 	else
 		$e "\033[33m无法识别当前版本，当前路径错误，不存在VERSION文件\n\033[1m\033[0m"
 	fi
 }
-INIT
+INIT "$@"
