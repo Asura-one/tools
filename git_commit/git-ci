@@ -1,12 +1,11 @@
 #!/bin/bash
-# fork https://cimhealth.github.io/git-toolkit
 function init() {
     LOCALE=(LANG LC_COLLATE LC_CTYPE LC_MESSAGES LC_MONETARY LC_NUMERIC LC_TIME LC_ALL)
     LANGUAGE="zh_CN.UTF-8"
     for l in "${LOCALE[@]}" ; do
         export "$l=$LANGUAGE"
     done
-    TYPE=(":sparkles: feat" ":bug:fix" ":memo: docs" ":art: style" ":hammer: refactor" ":white_check_mark: test" ":wrench: chore" ":zap: perf")
+    TYPE=(":sparkles: feat" ":bug: fix" ":memo: docs" ":art: style" ":recycle: refactor" ":white_check_mark: test" ":building_construction: chore" ":zap: perf")
 }
 
 # 验证当前是否为Git项目
@@ -67,10 +66,12 @@ function build() {
     fi
     MSGFILE="`git rev-parse --git-dir`COMMIT-MSG.tmp"
 
-    if [[ -n "$scope" ]]; then
+    if [[ -z "$scope" ]]; then
         echo "$type: $subject" > $MSGFILE
+        echo "$type: $subject $scope"
     else
         echo "$type($scope): $subject" > $MSGFILE
+        echo "$type($scope)"
     fi
     echo "" >> $MSGFILE
     echo "$body" >> $MSGFILE
