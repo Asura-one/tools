@@ -1,0 +1,78 @@
+#!/bin/bash
+# set -x
+# 'Tag|Descript|Alias|IP|Username|Port|Password'
+# $ 'test|测试|test|192.168.1.1|root|22|password' > ~/.autosshrc
+#
+# @usage
+# $ autossh   // List Server
+# $ autossh 1 // Login Num n Server
+
+
+
+AUTO_SSH_CONF=~/.autosshrc
+if [[ $(cat "${AUTO_SSH_CONF}") == "" ]]; then
+	echo -e "\033[1;31m#              Config(~/.autosshrc) Not Found              # \033[0m";
+	echo -e "\033[1;31m#                                                          # \033[0m"
+	echo -e "\033[1;31m#                                                          # \033[0m"
+else
+    server=$(awk -F\| '{print $1, $2, $3, $4, $5, $6, $7}' "${AUTO_SSH_CONF}")
+fi
+
+# list server
+function list() {
+    info=$(awk -F\| '{print $1, $2, $3, $4, $5, $6}' "${AUTO_SSH_CONF}")
+    echo -e "Tag Description Alias Host Username Port\n${info}" | column -t
+	if [ "$1" != "" ]; then
+	    name=$1
+	else
+	    echo -e 'Server Tag/Alias/IP: \c'
+	    read name
+	fi
+    login $name
+}
+
+function login() {
+    name=$1
+    ssh_info=($(echo "${server}" | grep -w "${name}" | awk '{print $4, $5, $6, $7}'))
+    sshpass -p ${ssh_info[3]} ssh -o StrictHostKeyChecking=no -p ${ssh_info[2]} -l ${ssh_info[1]} ${ssh_info[0]}
+}
+
+function add() {
+    echo $1 >> ${AUTO_SSH_CONF}
+}
+
+function change() {
+    pass
+}
+
+function usage() {
+    echo "usege:"
+    echo "autossh [-h] [-l] [-s <server alias>] [-a <server info>] [-c <server info>]"
+    exit 0
+}
+
+# clear screen
+clear
+while getopts hls:a:c: ARGS
+do
+case $ARGS in
+    s)
+        login $OPTARG
+        ;;
+    l)
+        list
+        ;;
+    a)
+        add $OPTARG
+        ;;
+    c)
+        change $OPTARG
+        ;;
+    h)
+        usage
+        ;;
+    *)
+        usage
+        ;;
+esac
+done
